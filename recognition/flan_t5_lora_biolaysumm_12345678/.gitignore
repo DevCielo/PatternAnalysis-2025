@@ -1,0 +1,53 @@
+# Data files
+data/
+*.csv
+
+# Model files and checkpoints
+checkpoints/
+best/
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Predictions and artifacts
+predictions/
+*.json
+*.jsonl
+
+# Training logs and plots
+*.png
+*.jpg
+*.jpeg
+trainer_log.json
+run_info.txt
+model_info.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+

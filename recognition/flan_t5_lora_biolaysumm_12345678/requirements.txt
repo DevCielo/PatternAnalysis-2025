@@ -1,0 +1,19 @@
+# Core dependencies for FLAN-T5 LoRA fine-tuning
+# Version numbers to be locked after testing
+
+torch
+transformers
+datasets
+peft
+accelerate
+bitsandbytes
+sentencepiece
+protobuf
+evaluate
+rouge-score
+scipy
+numpy
+pandas
+matplotlib
+tqdm
+
