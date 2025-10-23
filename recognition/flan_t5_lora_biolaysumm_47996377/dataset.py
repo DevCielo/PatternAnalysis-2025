@@ -29,7 +29,7 @@ class BioLaySummDS(Dataset):
         tokenizer,
         max_input_length=512,
         max_target_length=128,
-        prefix="Summarize the following medical report for a layperson: "
+        prefix="Explain the following medical report in simple terms that a patient can understand: "
     ):
         self.data = pd.read_csv(csv_path)
         self.tokenizer = tokenizer

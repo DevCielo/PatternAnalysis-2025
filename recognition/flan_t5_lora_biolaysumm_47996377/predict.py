@@ -198,7 +198,7 @@ def predict(
     test_csv='recognition/flan_t5_lora_biolaysumm_47996377/data/test.csv',
     output_dir='recognition/flan_t5_lora_biolaysumm_47996377/predictions',
     batch_size=4,
-    max_length=128,
+    max_length=160,
     num_samples=5,
     max_test_samples=None
 ):
@@ -288,7 +288,7 @@ if __name__ == "__main__":
                        help='Directory to save predictions')
     parser.add_argument('--batch-size', type=int, default=4,
                        help='Batch size for inference')
-    parser.add_argument('--max-length', type=int, default=128,
+    parser.add_argument('--max-length', type=int, default=160,
                        help='Maximum generation length')
     parser.add_argument('--num-samples', type=int, default=5,
                        help='Number of example samples to save')

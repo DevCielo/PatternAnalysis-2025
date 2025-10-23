@@ -166,7 +166,7 @@ def train(
     batch_size=8,
     learning_rate=1e-3,
     max_input_length=512,
-    max_target_length=128,
+    max_target_length=160,
     lora_r=8,
     lora_alpha=16,
     lora_dropout=0.05,
@@ -291,7 +291,7 @@ def train(
         dataloader_num_workers=0,  # Windows compatibility
         remove_unused_columns=False,
         predict_with_generate=True,  # Enable text generation for evaluation
-        generation_max_length=128  # Max length for generated summaries
+        generation_max_length=160  # Max length for generated summaries
     )
     
     print(f"  Epochs: {epochs}")
@@ -465,7 +465,7 @@ if __name__ == "__main__":
                        help='HuggingFace model name')
     parser.add_argument('--max-input-length', type=int, default=512,
                        help='Maximum input sequence length')
-    parser.add_argument('--max-target-length', type=int, default=128,
+    parser.add_argument('--max-target-length', type=int, default=160,
                        help='Maximum target sequence length')
     
     # Training arguments
