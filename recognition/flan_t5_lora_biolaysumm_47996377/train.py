@@ -10,36 +10,67 @@ import argparse
 import numpy as np
 from datetime import datetime
 from transformers import (
-    Trainer,
-    TrainingArguments,
+    Seq2SeqTrainer,
+    Seq2SeqTrainingArguments,
     DataCollatorForSeq2Seq,
     EarlyStoppingCallback
 )
 import torch
+import evaluate
 from dataset import BioLaySummDS, load_tokenizer
 from modules import build_model, print_model_info
 
+# Load ROUGE metric
+rouge_metric = evaluate.load('rouge')
 
-def compute_metrics(eval_pred):
+
+def compute_metrics(eval_pred, tokenizer):
     """
     Compute ROUGE metrics for evaluation.
     
     Args:
-        eval_pred: Tuple of (predictions, labels)
+        eval_pred: Tuple of (predictions, labels) from Trainer
+        tokenizer: Tokenizer for decoding
     
     Returns:
-        dict: Dictionary of metric scores
+        dict: Dictionary of ROUGE scores
     """
-    # TODO: Implement full ROUGE computation in MP4
-    # For now, return a stub to prove the training loop works
     predictions, labels = eval_pred
     
-    # Simple metrics stub
+    # Handle predictions: they might be logits or generated IDs
+    # If logits, take argmax; if IDs, use directly
+    if len(predictions.shape) == 3:
+        # predictions are logits (batch_size, seq_len, vocab_size)
+        predictions = np.argmax(predictions, axis=-1)
+    
+    # Replace -100 padding in predictions with pad_token_id
+    predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
+    
+    # Decode predictions
+    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
+    
+    # Replace -100 in labels (used for padding) with pad_token_id
+    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    
+    # ROUGE expects newline after each sentence for proper scoring
+    decoded_preds = ["\n".join(pred.strip().split(".")) if pred.strip() else "empty" for pred in decoded_preds]
+    decoded_labels = ["\n".join(label.strip().split(".")) if label.strip() else "empty" for label in decoded_labels]
+    
+    # Compute ROUGE scores
+    result = rouge_metric.compute(
+        predictions=decoded_preds,
+        references=decoded_labels,
+        use_stemmer=True,
+        use_aggregator=True
+    )
+    
+    # Extract the metrics we need
     metrics = {
-        'rouge1': 0.0,
-        'rouge2': 0.0,
-        'rougeL': 0.0,
-        'rougeLsum': 0.0
+        'rouge1': result['rouge1'],
+        'rouge2': result['rouge2'],
+        'rougeL': result['rougeL'],
+        'rougeLsum': result['rougeLsum']
     }
     
     return metrics
@@ -146,7 +177,7 @@ def train(
     if torch.cuda.is_available():
         print("  Note: GPU detected but forcing CPU due to compatibility issues")
     
-    training_args = TrainingArguments(
+    training_args = Seq2SeqTrainingArguments(
         output_dir=output_dir,
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
@@ -160,15 +191,17 @@ def train(
         save_strategy="steps",
         save_steps=save_steps,
         save_total_limit=3,
-        load_best_model_at_end=False,  # Will implement in MP4
-        metric_for_best_model="loss",
-        greater_is_better=False,
+        load_best_model_at_end=True,  # Load best model based on ROUGE
+        metric_for_best_model="rougeLsum",  # Use ROUGE-Lsum for best model selection
+        greater_is_better=True,  # Higher ROUGE is better
         report_to="none",  # Disable wandb/tensorboard for now
         seed=42,
         fp16=False,  # Disable for CPU compatibility
         use_cpu=True,  # Force CPU
         dataloader_num_workers=0,  # Windows compatibility
-        remove_unused_columns=False
+        remove_unused_columns=False,
+        predict_with_generate=True,  # Enable text generation for evaluation
+        generation_max_length=128  # Max length for generated summaries
     )
     
     print(f"  Epochs: {epochs}")
@@ -176,17 +209,24 @@ def train(
     print(f"  Learning rate: {learning_rate}")
     print(f"  Device: CPU")
     print(f"  Mixed precision (FP16): False")
+    print(f"  Predict with generate: True")
+    print(f"  Generation max length: 128")
     
     # Initialize Trainer
     print("\n[5/5] Initializing Trainer...")
-    trainer = Trainer(
+    
+    # Create compute_metrics closure with tokenizer
+    def compute_metrics_with_tokenizer(eval_pred):
+        return compute_metrics(eval_pred, tokenizer)
+    
+    trainer = Seq2SeqTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        compute_metrics=compute_metrics  # ROUGE stub for now
+        compute_metrics=compute_metrics_with_tokenizer  # ROUGE evaluation
     )
     
     # Train
@@ -200,29 +240,44 @@ def train(
     
     training_time = (end_time - start_time).total_seconds()
     
-    # Save final model
+    # Save best and final models
     print("\n" + "=" * 80)
     print("Training Complete!")
     print("=" * 80)
     print(f"  Total time: {training_time:.2f} seconds ({training_time/60:.2f} minutes)")
     print(f"  Final train loss: {train_result.training_loss:.4f}")
     
+    # Save final model
     trainer.save_model(f"{output_dir}/final")
+    print(f"\n  Saved final model to: {output_dir}/final")
     
-    # Evaluate on validation set
+    # Save best model (based on rougeLsum)
+    # The trainer already loaded the best model at the end
+    best_model_dir = f"{output_dir}/best"
+    trainer.save_model(best_model_dir)
+    print(f"  Saved best model to: {best_model_dir}")
+    
+    # Evaluate on validation set with best model
     print("\n" + "=" * 80)
-    print("Running Validation...")
+    print("Running Final Validation with Best Model...")
     print("=" * 80)
     eval_results = trainer.evaluate()
     
-    print("\nValidation Results:")
+    print("\nValidation Results (Best Model):")
     for key, value in eval_results.items():
-        print(f"  {key}: {value}")
+        if isinstance(value, float):
+            print(f"  {key}: {value:.4f}")
+        else:
+            print(f"  {key}: {value}")
     
-    # Save training log
+    # Save training log with ROUGE scores
     log_data = {
         'train_loss': float(train_result.training_loss),
         'eval_loss': float(eval_results['eval_loss']),
+        'eval_rouge1': float(eval_results.get('eval_rouge1', 0.0)),
+        'eval_rouge2': float(eval_results.get('eval_rouge2', 0.0)),
+        'eval_rougeL': float(eval_results.get('eval_rougeL', 0.0)),
+        'eval_rougeLsum': float(eval_results.get('eval_rougeLsum', 0.0)),
         'training_time_seconds': training_time,
         'epochs': epochs,
         'batch_size': batch_size,
@@ -230,14 +285,17 @@ def train(
         'lora_r': lora_r,
         'lora_alpha': lora_alpha,
         'lora_dropout': lora_dropout,
-        'max_samples': max_samples
+        'max_samples': max_samples,
+        'best_model_metric': 'rougeLsum'
     }
     
-    with open(f"{output_dir}/training_log.json", 'w') as f:
+    log_file = f"{output_dir}/trainer_log.json"
+    with open(log_file, 'w') as f:
         json.dump(log_data, f, indent=2)
     
-    print(f"\n[SUCCESS] Training log saved to {output_dir}/training_log.json")
-    print(f"[SUCCESS] Model saved to {output_dir}/final")
+    print(f"\n[SUCCESS] Training log saved to {log_file}")
+    print(f"[SUCCESS] Best model saved to {best_model_dir}")
+    print(f"[SUCCESS] Final model saved to {output_dir}/final")
     
     return trainer, eval_results
 
