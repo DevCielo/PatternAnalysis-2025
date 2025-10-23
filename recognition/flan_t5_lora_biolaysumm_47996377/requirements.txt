@@ -1,19 +1,26 @@
-# Core dependencies for FLAN-T5 LoRA fine-tuning
-# Version numbers to be locked after testing
+# Core deep learning and transformers
+torch==2.6.0
+transformers==4.57.1
+peft==0.17.1
+accelerate==1.11.0
+sentencepiece==0.2.1
 
-torch
-transformers
-datasets
-peft
-accelerate
-bitsandbytes
-sentencepiece
-protobuf
-evaluate
-rouge-score
-scipy
-numpy
-pandas
-matplotlib
-tqdm
+# Data handling
+datasets==4.2.0
+pandas==2.2.2
+numpy==1.26.4
 
+# Evaluation
+evaluate==0.4.6
+rouge-score==0.1.2
+scipy==1.13.1
+
+# Visualization
+matplotlib==3.9.2
+
+# Utilities
+tqdm==4.66.5
+protobuf==4.25.3
+
+# Note: PyTorch version is for CUDA 12.6
+# For CPU-only: pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu

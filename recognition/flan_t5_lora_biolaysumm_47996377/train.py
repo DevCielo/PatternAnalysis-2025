@@ -7,6 +7,7 @@ This script handles model training, validation, and checkpoint saving.
 import os
 import json
 import argparse
+import random
 import numpy as np
 from datetime import datetime
 from transformers import (
@@ -22,6 +23,85 @@ from modules import build_model, print_model_info
 
 # Load ROUGE metric
 rouge_metric = evaluate.load('rouge')
+
+
+def set_seed(seed=42):
+    """
+    Set random seed for reproducibility across all libraries.
+    
+    Args:
+        seed (int): Random seed value
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # Make PyTorch deterministic (may reduce performance)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    print(f"  Random seed set to: {seed}")
+
+
+def get_hardware_info():
+    """
+    Get hardware information (GPU name, VRAM, etc.).
+    
+    Returns:
+        dict: Hardware information
+    """
+    info = {
+        'device': 'CPU',
+        'gpu_name': None,
+        'gpu_vram_total_mb': None,
+        'gpu_vram_available_mb': None,
+        'cuda_available': torch.cuda.is_available(),
+        'cuda_version': torch.version.cuda if torch.cuda.is_available() else None,
+        'pytorch_version': torch.__version__
+    }
+    
+    if torch.cuda.is_available():
+        try:
+            info['device'] = 'GPU'
+            info['gpu_name'] = torch.cuda.get_device_name(0)
+            # Get VRAM info
+            props = torch.cuda.get_device_properties(0)
+            info['gpu_vram_total_mb'] = props.total_memory / (1024**2)
+            # Current memory usage
+            allocated = torch.cuda.memory_allocated(0) / (1024**2)
+            reserved = torch.cuda.memory_reserved(0) / (1024**2)
+            info['gpu_vram_allocated_mb'] = allocated
+            info['gpu_vram_reserved_mb'] = reserved
+            info['gpu_vram_available_mb'] = info['gpu_vram_total_mb'] - allocated
+        except Exception as e:
+            info['gpu_error'] = str(e)
+    
+    return info
+
+
+def print_hardware_info(info):
+    """
+    Print hardware information in a formatted way.
+    
+    Args:
+        info (dict): Hardware information
+    """
+    print("\n" + "=" * 80)
+    print("Hardware Information")
+    print("=" * 80)
+    print(f"  PyTorch Version: {info['pytorch_version']}")
+    print(f"  CUDA Available: {info['cuda_available']}")
+    
+    if info['cuda_available']:
+        print(f"  CUDA Version: {info['cuda_version']}")
+        print(f"  Device: {info['device']}")
+        print(f"  GPU Name: {info['gpu_name']}")
+        if info['gpu_vram_total_mb']:
+            print(f"  GPU VRAM Total: {info['gpu_vram_total_mb']:.2f} MB")
+            print(f"  GPU VRAM Available: {info['gpu_vram_available_mb']:.2f} MB")
+    else:
+        print(f"  Device: CPU")
+    print("=" * 80)
 
 
 def compute_metrics(eval_pred, tokenizer):
@@ -92,7 +172,8 @@ def train(
     lora_dropout=0.05,
     save_steps=100,
     eval_steps=100,
-    logging_steps=10
+    logging_steps=10,
+    seed=42
 ):
     """
     Train FLAN-T5 with LoRA on BioLaySumm dataset.
@@ -114,10 +195,19 @@ def train(
         save_steps (int): Save checkpoint every N steps
         eval_steps (int): Evaluate every N steps
         logging_steps (int): Log every N steps
+        seed (int): Random seed for reproducibility
     """
     print("=" * 80)
     print("FLAN-T5 LoRA Training - BioLaySumm Dataset")
     print("=" * 80)
+    
+    # Set random seed for reproducibility
+    print("\n[Reproducibility] Setting random seed...")
+    set_seed(seed)
+    
+    # Get and print hardware information
+    hardware_info = get_hardware_info()
+    print_hardware_info(hardware_info)
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
@@ -293,7 +383,57 @@ def train(
     with open(log_file, 'w') as f:
         json.dump(log_data, f, indent=2)
     
+    # Save run info (hardware + hyperparameters)
+    run_info = {
+        'hardware': hardware_info,
+        'hyperparameters': {
+            'model_name': model_name,
+            'epochs': epochs,
+            'batch_size': batch_size,
+            'learning_rate': learning_rate,
+            'max_input_length': max_input_length,
+            'max_target_length': max_target_length,
+            'lora_r': lora_r,
+            'lora_alpha': lora_alpha,
+            'lora_dropout': lora_dropout,
+            'seed': seed
+        },
+        'results': log_data,
+        'timestamp': datetime.now().isoformat()
+    }
+    
+    run_info_file = f"{output_dir}/run_info.txt"
+    with open(run_info_file, 'w') as f:
+        f.write("=" * 80 + "\n")
+        f.write("Training Run Information\n")
+        f.write("=" * 80 + "\n\n")
+        
+        f.write("Hardware Information:\n")
+        f.write("-" * 80 + "\n")
+        for key, value in hardware_info.items():
+            f.write(f"  {key}: {value}\n")
+        
+        f.write("\n" + "=" * 80 + "\n")
+        f.write("Hyperparameters:\n")
+        f.write("-" * 80 + "\n")
+        for key, value in run_info['hyperparameters'].items():
+            f.write(f"  {key}: {value}\n")
+        
+        f.write("\n" + "=" * 80 + "\n")
+        f.write("Training Results:\n")
+        f.write("-" * 80 + "\n")
+        for key, value in log_data.items():
+            if isinstance(value, float):
+                f.write(f"  {key}: {value:.4f}\n")
+            else:
+                f.write(f"  {key}: {value}\n")
+        
+        f.write("\n" + "=" * 80 + "\n")
+        f.write(f"Timestamp: {run_info['timestamp']}\n")
+        f.write("=" * 80 + "\n")
+    
     print(f"\n[SUCCESS] Training log saved to {log_file}")
+    print(f"[SUCCESS] Run info saved to {run_info_file}")
     print(f"[SUCCESS] Best model saved to {best_model_dir}")
     print(f"[SUCCESS] Final model saved to {output_dir}/final")
     
@@ -302,18 +442,55 @@ def train(
 
 if __name__ == "__main__":
     """
-    Dry-run training script with minimal samples.
+    Training script with comprehensive CLI arguments.
     """
-    parser = argparse.ArgumentParser(description='Train FLAN-T5 with LoRA on BioLaySumm')
+    parser = argparse.ArgumentParser(
+        description='Train FLAN-T5 with LoRA on BioLaySumm',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
     
-    parser.add_argument('--dry-run', action='store_true', help='Run with 50 samples for testing')
+    # Data arguments
+    parser.add_argument('--train-csv', type=str,
+                       default='recognition/flan_t5_lora_biolaysumm_47996377/data/train.csv',
+                       help='Path to training CSV')
+    parser.add_argument('--val-csv', type=str,
+                       default='recognition/flan_t5_lora_biolaysumm_47996377/data/val.csv',
+                       help='Path to validation CSV')
+    parser.add_argument('--output-dir', type=str,
+                       default='recognition/flan_t5_lora_biolaysumm_47996377/checkpoints',
+                       help='Directory to save checkpoints')
+    
+    # Model arguments
+    parser.add_argument('--model-name', type=str, default='google/flan-t5-base',
+                       help='HuggingFace model name')
+    parser.add_argument('--max-input-length', type=int, default=512,
+                       help='Maximum input sequence length')
+    parser.add_argument('--max-target-length', type=int, default=128,
+                       help='Maximum target sequence length')
+    
+    # Training arguments
     parser.add_argument('--epochs', type=int, default=1, help='Number of epochs')
-    parser.add_argument('--batch-size', type=int, default=8, help='Batch size')
+    parser.add_argument('--batch-size', type=int, default=8, help='Training batch size')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('--max-samples', type=int, default=None, help='Max training samples')
+    parser.add_argument('--max-samples', type=int, default=None,
+                       help='Max training samples (for testing)')
+    
+    # LoRA arguments
     parser.add_argument('--lora-r', type=int, default=8, help='LoRA rank')
     parser.add_argument('--lora-alpha', type=int, default=16, help='LoRA alpha')
     parser.add_argument('--lora-dropout', type=float, default=0.05, help='LoRA dropout')
+    
+    # Logging arguments
+    parser.add_argument('--save-steps', type=int, default=500, help='Save checkpoint every N steps')
+    parser.add_argument('--eval-steps', type=int, default=500, help='Evaluate every N steps')
+    parser.add_argument('--logging-steps', type=int, default=50, help='Log every N steps')
+    
+    # Reproducibility
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    
+    # Quick modes
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Quick test with 50 samples for 1 epoch')
     
     args = parser.parse_args()
     
@@ -330,20 +507,27 @@ if __name__ == "__main__":
         max_samples = args.max_samples
         epochs = args.epochs
         batch_size = args.batch_size
-        save_steps = 500
-        eval_steps = 500
-        logging_steps = 50
+        save_steps = args.save_steps
+        eval_steps = args.eval_steps
+        logging_steps = args.logging_steps
     
     # Run training
     trainer, eval_results = train(
+        train_csv=args.train_csv,
+        val_csv=args.val_csv,
+        model_name=args.model_name,
+        output_dir=args.output_dir,
         max_samples=max_samples,
         epochs=epochs,
         batch_size=batch_size,
         learning_rate=args.lr,
+        max_input_length=args.max_input_length,
+        max_target_length=args.max_target_length,
         lora_r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
         save_steps=save_steps,
         eval_steps=eval_steps,
-        logging_steps=logging_steps
+        logging_steps=logging_steps,
+        seed=args.seed
     )
