@@ -16,9 +16,9 @@ predictions/
 *.jsonl
 
 # Training logs and plots
-*.png
-*.jpg
-*.jpeg
+# *.png  # Commented out to allow assets/ folder images for README
+# *.jpg
+# *.jpeg
 trainer_log.json
 run_info.txt
 model_info.txt
