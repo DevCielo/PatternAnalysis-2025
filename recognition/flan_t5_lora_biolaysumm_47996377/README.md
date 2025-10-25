@@ -225,65 +225,65 @@ The LoRA adapters are extremely lightweight (7 MB), making the fine-tuned model 
 ### Example 1: Air Trapping
 
 **Input Report:**
-> The chest shows significant air trapping. Bilateral apical chronic changes are present. Dorsal kyphosis is noted. No evidence of pneumothorax.
+The chest shows significant air trapping. Bilateral apical chronic changes are present. Dorsal kyphosis is noted. No evidence of pneumothorax.
 
 **Model Prediction:**
-> The chest shows significant air trapping. Bilateral apical chronic changes are present. Dorsal kyphosis is noted.
+The chest shows significant air trapping. Bilateral apical chronic changes are present. Dorsal kyphosis is noted.
 
 **Reference (Ground Truth):**
-> The chest shows a large amount of trapped air. There are long-term changes at the top of both lungs. The upper back is curved outward. There is no sign of air in the space around the lungs.
+The chest shows a large amount of trapped air. There are long-term changes at the top of both lungs. The upper back is curved outward. There is no sign of air in the space around the lungs.
 
 **Analysis:** The model identifies key findings but doesn't fully simplify medical terms like "apical chronic changes" and omits the final sentence about pneumothorax.
 
 ### Example 2: Central Venous Catheter
 
 **Input Report:**
-> Central venous catheter traversing the left jugular vein with its tip in the superior vena cava. The remainder is unchanged.
+Central venous catheter traversing the left jugular vein with its tip in the superior vena cava. The remainder is unchanged.
 
 **Model Prediction:**
-> A central venous catheter traversing the left jugular vein with its tip in the superior vena cava.
+A central venous catheter traversing the left jugular vein with its tip in the superior vena cava.
 
 **Reference (Ground Truth):**
-> A central venous catheter is going through the left jugular vein and its tip is in the superior vena cava. Everything else is the same as before.
+A central venous catheter is going through the left jugular vein and its tip is in the superior vena cava. Everything else is the same as before.
 
 **Analysis:** The model doesn't simplify "traversing" and omits the "remainder unchanged" statement.
 
 ### Example 3: Simple Report
 
 **Input Report:**
-> Chronic pulmonary changes
+Chronic pulmonary changes
 
 **Model Prediction:**
-> Chronic pulmonary changes
+Chronic pulmonary changes
 
 **Reference (Ground Truth):**
-> Long-term changes in the lungs are seen.
+Long-term changes in the lungs are seen.
 
 **Analysis:** The model copies short reports verbatim without simplification, suggesting it needs more training on brief inputs.
 
 ### Example 4: Complex Asbestos Exposure
 
 **Input Report:**
-> Radiological signs of air trapping, flattened diaphragm, and increased retrosternal space. Calcified pleural plaques at the level of the left diaphragmatic pleura. Loss of volume in the left lung with subpleural linear opacities. Findings are related to chronic inflammatory changes due to asbestos exposure. Review of previous CT scan shows no significant changes compared to the scanogram dated 3/4/2009.
+Radiological signs of air trapping, flattened diaphragm, and increased retrosternal space. Calcified pleural plaques at the level of the left diaphragmatic pleura. Loss of volume in the left lung with subpleural linear opacities. Findings are related to chronic inflammatory changes due to asbestos exposure. Review of previous CT scan shows no significant changes compared to the scanogram dated 3/4/2009.
 
 **Model Prediction:**
-> A CT scan shows signs of air trapping, flattened diaphragm, and increased retrosternal space. Findings are related to chronic inflammatory changes due to asbestos exposure.
+A CT scan shows signs of air trapping, flattened diaphragm, and increased retrosternal space. Findings are related to chronic inflammatory changes due to asbestos exposure.
 
 **Reference (Ground Truth):**
-> The X-ray shows signs of trapped air, a flattened muscle under the lungs, and more space behind the breastbone. There are also hardened areas on the lung lining on the left side. The left lung has lost some volume and has some linear shadows near the outer lining. These findings are related to long-term inflammation caused by exposure to asbestos. Looking at the previous CT scan, there are no significant changes compared to the scanogram dated 3/4/2009.
+The X-ray shows signs of trapped air, a flattened muscle under the lungs, and more space behind the breastbone. There are also hardened areas on the lung lining on the left side. The left lung has lost some volume and has some linear shadows near the outer lining. These findings are related to long-term inflammation caused by exposure to asbestos. Looking at the previous CT scan, there are no significant changes compared to the scanogram dated 3/4/2009.
 
 **Analysis:** The model identifies main findings but over-summarizes, omitting details about pleural plaques and volume loss.
 
 ### Example 5: Calcified Granuloma
 
 **Input Report:**
-> Calcified granuloma in the right lung vertex.
+Calcified granuloma in the right lung vertex.
 
 **Model Prediction:**
-> Calcified granuloma in the right lung vertex.
+Calcified granuloma in the right lung vertex.
 
 **Reference (Ground Truth):**
-> There is a calcified granuloma located at the top of the right lung.
+There is a calcified granuloma located at the top of the right lung.
 
 **Analysis:** The model doesn't simplify anatomical terms like "vertex" or restructure for readability.
 
