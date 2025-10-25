@@ -1,77 +1,57 @@
 # FLAN-T5 with LoRA for BioLaySumm: Medical Report to Layperson Summary Translation
 
-**Project 13 - Hard Difficulty**  
-Fine-tuning a pretrained encoder-decoder LLM to translate expert radiology reports into layperson-friendly summaries.
+**Project 13 - Hard Difficulty**
 
----
+This project fine-tunes FLAN-T5 using LoRA to translate expert radiology reports into layperson summaries for the BioLaySumm 2024 dataset (ACL 2025 workshop, Subtask 2.1).
 
-## 📋 Problem Description
+## Problem Description
 
-Medical reports written by radiologists contain complex medical terminology that is difficult for patients to understand. This project addresses the challenge of automatically translating these expert-level radiology reports into simple, patient-friendly language that non-experts can comprehend.
+Radiologists write reports using complex medical terminology that patients struggle to understand. This project automatically translates technical radiology reports into simple, patient-friendly language while preserving medical accuracy.
 
-This is **Subtask 2.1** from the **ACL 2025 BioLaySumm workshop**, which focuses on biomedical lay summarization. The goal is to take technical medical text as input and generate clear, accessible explanations suitable for patients.
+The main challenges include simplifying medical jargon without losing meaning, explaining technical concepts in everyday language, and maintaining faithfulness to the original content across diverse medical terminology and report structures.
 
-**Key Challenges:**
-- Medical jargon must be simplified without losing accuracy
-- Technical concepts need to be explained in everyday language
-- Summaries must remain faithful to the original medical content
-- Model must handle diverse medical terminology and report structures
-
----
-
-## 🧠 Method
+## Method
 
 ### Model Architecture
 
-This project uses **FLAN-T5-base**, a pretrained encoder-decoder Transformer model developed by Google. FLAN-T5 is an instruction-tuned variant of T5 (Text-to-Text Transfer Transformer) that has been fine-tuned on a diverse set of tasks using natural language instructions.
+The project uses FLAN-T5-base, a pretrained encoder-decoder Transformer from Google. FLAN-T5 is an instruction-tuned variant of T5 that has been fine-tuned on diverse tasks using natural language instructions.
 
 **Model Specifications:**
-- **Base Model:** `google/flan-t5-base`
-- **Architecture:** Encoder-Decoder Transformer
-- **Total Parameters:** 247,577,856 (~248M)
-- **Vocabulary Size:** 32,100 tokens
-- **Max Input Length:** 512 tokens
-- **Max Output Length:** 160 tokens
+- Base Model: `google/flan-t5-base`
+- Architecture: Encoder-Decoder Transformer
+- Total Parameters: 247,577,856 (~248M)
+- Vocabulary Size: 32,100 tokens
+- Max Input Length: 512 tokens
+- Max Output Length: 160 tokens
 
-### Fine-Tuning Strategy: LoRA (Low-Rank Adaptation)
+### Fine-Tuning Strategy: LoRA
 
-Instead of full fine-tuning (updating all 248M parameters), this project uses **LoRA (Low-Rank Adaptation)** for parameter-efficient fine-tuning. LoRA freezes the pretrained model weights and injects trainable low-rank decomposition matrices into the Transformer layers.
+Instead of full fine-tuning all 248M parameters, I used LoRA (Low-Rank Adaptation) for parameter-efficient fine-tuning. LoRA freezes the pretrained weights and injects trainable low-rank matrices into the Transformer layers.
 
 **LoRA Configuration:**
-- **Rank (r):** 8
-- **Alpha:** 16
-- **Dropout:** 0.05
-- **Target Modules:** Query (q) and Value (v) projection layers
-- **Trainable Parameters:** 1,769,472 (~1.77M)
-- **Trainable Percentage:** 0.71% of total parameters
+- Rank (r): 8
+- Alpha: 16
+- Dropout: 0.05
+- Target Modules: Query (q) and Value (v) projection layers
+- Trainable Parameters: 1,769,472 (~1.77M)
+- Trainable Percentage: 0.71% of total parameters
 
-**Benefits of LoRA:**
-- ✅ **Memory Efficient:** Only 0.71% of parameters need gradients
-- ✅ **Fast Training:** Reduces training time and GPU memory requirements
-- ✅ **Portable:** LoRA adapters are small (~7MB vs 1GB for full model)
-- ✅ **Effective:** Achieves comparable performance to full fine-tuning
+This approach is memory efficient (only 0.71% of parameters need gradients), trains faster, produces small adapter files (~7MB vs 1GB), and achieves comparable performance to full fine-tuning.
 
 ### Training Prompt
 
-Input reports are prefixed with a task-specific instruction:
+Each input report is prefixed with:
 ```
 "Explain the following medical report in simple terms that a patient can understand: [REPORT]"
 ```
 
-This prompt engineering approach explicitly guides the model to:
-1. Focus on patient-friendly explanations (not just summaries)
-2. Use simple, accessible language
-3. Target a non-expert audience
+This prompt guides the model to focus on patient-friendly explanations rather than technical summaries.
 
----
-
-## 📊 Dataset & Data Splits
+## Dataset & Data Splits
 
 ### BioLaySumm Dataset
 
-The **BioLaySumm 2024 dataset** contains pairs of expert radiology reports and their corresponding layperson summaries. Each example consists of:
-- **Input:** Technical radiology report with medical terminology
-- **Output:** Simplified layperson summary for patient understanding
+The BioLaySumm 2024 dataset contains pairs of expert radiology reports and their corresponding layperson summaries.
 
 **Dataset Statistics:**
 | Split | Samples | Percentage |
@@ -83,54 +63,37 @@ The **BioLaySumm 2024 dataset** contains pairs of expert radiology reports and t
 
 ### Data Split Justification
 
-- **85% Training:** Large training set provides sufficient examples for the model to learn medical terminology patterns and simplification strategies
-- **8.5% Validation:** Used during training for hyperparameter tuning, early stopping, and best model selection based on ROUGE scores
-- **6.5% Test:** Held-out test set for final evaluation and performance reporting
+The dataset uses an 85/8.5/6.5 train/val/test split. The large training set (150K samples) provides sufficient examples for learning medical terminology patterns and simplification strategies. The validation set is used for hyperparameter tuning and early stopping during training, selecting the best model based on ROUGE-Lsum. The test set remains completely held-out for final evaluation.
 
 ### Preprocessing
 
-1. **Tokenization:** SentencePiece tokenizer from FLAN-T5
-2. **Input Length:** Maximum 512 tokens (truncation applied if exceeded)
-3. **Output Length:** Maximum 160 tokens (allows detailed explanations)
-4. **Padding:** Dynamic padding to longest sequence in each batch
-5. **Label Masking:** Padding tokens in labels replaced with `-100` (ignored by loss)
+Input reports are tokenized using FLAN-T5's SentencePiece tokenizer with a maximum length of 512 tokens (truncated if longer). Target summaries are truncated at 160 tokens to allow detailed explanations. Dynamic padding is applied to the longest sequence in each batch. Padding tokens in labels are replaced with -100 so they're ignored by the loss function.
 
----
-
-## 🔁 Reproducibility
+## Reproducibility
 
 ### Hardware & Environment
 
-**Training Hardware:**
-- **GPU:** NVIDIA GeForce RTX 5090
-- **VRAM:** 32,606 MB (32 GB)
-- **CUDA Version:** 12.6
-- **PyTorch Version:** 2.6.0+cu126
+**Hardware:**
+- GPU: NVIDIA GeForce RTX 5090
+- VRAM: 32 GB
+- CUDA: 12.6
+- PyTorch: 2.6.0+cu126
 
-**Software Environment:**
-- **Python:** 3.11+
-- **Operating System:** Windows 10
-- **Random Seed:** 42 (fixed for reproducibility)
+**Software:**
+- Python 3.11+
+- Windows 10
+- Random seed: 42
 
-### Key Dependencies
+### Dependencies
 
-```txt
-torch==2.6.0
-transformers==4.57.1
-peft==0.17.1
-accelerate==1.11.0
-sentencepiece==0.2.1
-datasets==4.2.0
-pandas==2.2.2
-numpy==1.26.4
-evaluate==0.4.6
-rouge-score==0.1.2
-scipy==1.13.1
-matplotlib==3.9.2
-tqdm==4.66.5
-```
+Key packages:
+- torch 2.6.0
+- transformers 4.57.1
+- peft 0.17.1
+- evaluate 0.4.6
+- rouge-score 0.1.2
 
-**Full dependency list:** See `requirements.txt`
+See `requirements.txt` for complete list.
 
 ### Training Hyperparameters
 
@@ -152,49 +115,33 @@ tqdm==4.66.5
 
 ### Training Time
 
-- **Training Samples:** 50 (dry-run for validation)
-- **Training Time:** 42.06 seconds
-- **Steps:** 13 total steps
-- **Evaluation Frequency:** Every 10 steps
-- **Best Checkpoint:** Step 10 (based on ROUGE-Lsum)
+This dry-run used 50 samples and took 42 seconds (13 steps total, evaluation every 10 steps). The best checkpoint was at step 10 based on ROUGE-Lsum. Full training on 150K samples would take approximately 3-5 hours on RTX 5090.
 
-**Note:** This is a dry-run with 50 samples for demonstration. Full training on 150K samples would take approximately 3-5 hours on RTX 5090.
+## How to Run
 
----
-
-## 🚀 How to Run
-
-### Step 1: Installation
-
-Clone the repository and install dependencies:
+### Installation
 
 ```bash
-# Navigate to project directory
 cd recognition/flan_t5_lora_biolaysumm_47996377
-
-# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-### Step 2: Download Data
-
-Download and prepare the BioLaySumm dataset:
+### Download Data
 
 ```bash
-# Run data download script
 python download_data.py
 ```
 
-This will download the dataset and split it into `data/train.csv`, `data/val.csv`, and `data/test.csv`.
+This downloads the dataset and creates `data/train.csv`, `data/val.csv`, and `data/test.csv`.
 
-### Step 3: Training
+### Training
 
-**Quick Dry-Run (50 samples, ~1 minute):**
+Quick dry-run (50 samples, ~1 minute):
 ```bash
 python train.py --dry-run
 ```
 
-**Full Training (150K samples, ~3-5 hours):**
+Full training (150K samples, ~3-5 hours):
 ```bash
 python train.py \
   --train-csv data/train.csv \
@@ -210,63 +157,31 @@ python train.py \
   --logging-steps 50
 ```
 
-**Training Options:**
-- `--dry-run`: Quick test with 50 samples
-- `--epochs`: Number of training epochs (default: 1)
-- `--batch-size`: Training batch size (default: 8)
-- `--lr`: Learning rate (default: 1e-3)
-- `--max-samples`: Limit training samples for testing
-- `--lora-r`: LoRA rank (default: 8)
-- `--lora-alpha`: LoRA alpha (default: 16)
+Training saves checkpoints to `checkpoints/`, logs metrics, saves the best model based on validation ROUGE-Lsum, and generates plots.
 
-Training will:
-- Save checkpoints to `checkpoints/`
-- Log training metrics every N steps
-- Save best model based on validation ROUGE-Lsum
-- Generate training plots and logs
+### Inference
 
-### Step 4: Inference
-
-**Run inference on test set:**
+Run inference on test set:
 ```bash
 python predict.py --checkpoint checkpoints/best
 ```
 
-**Quick test (20 samples):**
+Quick test (20 samples):
 ```bash
 python predict.py --checkpoint checkpoints/best --quick-test
 ```
 
-**Inference Options:**
-- `--checkpoint`: Path to model checkpoint (default: `checkpoints/best`)
-- `--test-csv`: Path to test CSV (default: `data/test.csv`)
-- `--output-dir`: Output directory for predictions (default: `predictions/`)
-- `--batch-size`: Inference batch size (default: 4)
-- `--max-length`: Maximum generation length (default: 160)
-- `--num-samples`: Number of examples to save (default: 5)
+This generates predictions, computes ROUGE scores, and saves results to `predictions/`.
 
-Inference will:
-- Generate predictions for all test samples
-- Compute ROUGE scores
-- Save results to `predictions/rouge.json`
-- Save example predictions to `predictions/samples.jsonl`
-
-### Step 5: Generate Plots
-
-Create training visualization plots:
+### Generate Plots
 
 ```bash
 python create_plots.py
 ```
 
-This generates:
-- `assets/training_loss.png` - Training and validation loss
-- `assets/rouge_metrics.png` - ROUGE metrics over time
-- `assets/training_overview.png` - Combined overview
+Creates training visualizations in `assets/`.
 
----
-
-## 📈 Results
+## Results
 
 ### Validation Set Performance (50 samples, 1 epoch)
 
@@ -291,13 +206,9 @@ This generates:
 
 ![ROUGE Metrics](assets/rouge_metrics.png)
 
-### Key Observations
+### Observations
 
-1. **Convergence:** Both training and validation loss decrease steadily, indicating effective learning
-2. **No Overfitting:** Validation loss remains below training loss, suggesting good generalization
-3. **ROUGE Improvement:** ROUGE scores improve from step 5 to step 10, with best model selected at step 10
-4. **ROUGE-2 Performance:** 0.1871 ROUGE-2 indicates good bigram/phrase-level matching
-5. **Best Checkpoint:** Model at step 10 achieved highest ROUGE-Lsum (0.3101)
+Both training and validation loss decrease steadily, with no overfitting (validation loss stays below training loss). ROUGE scores improve from step 5 to step 10, with the best checkpoint selected at step 10 achieving ROUGE-Lsum of 0.3101.
 
 ### Model Size
 
@@ -309,9 +220,7 @@ This generates:
 
 The LoRA adapters are extremely lightweight (7 MB), making the fine-tuned model easy to share and deploy.
 
----
-
-## 💡 Examples (Test Set Predictions)
+## Examples (Test Set Predictions)
 
 ### Example 1: Air Trapping
 
@@ -324,9 +233,7 @@ The LoRA adapters are extremely lightweight (7 MB), making the fine-tuned model 
 **Reference (Ground Truth):**
 > The chest shows a large amount of trapped air. There are long-term changes at the top of both lungs. The upper back is curved outward. There is no sign of air in the space around the lungs.
 
-**Analysis:** The model correctly identifies key findings but doesn't fully simplify all medical terms (e.g., "apical chronic changes" → "long-term changes at the top of both lungs"). The model also omitted the final sentence about pneumothorax.
-
----
+**Analysis:** The model identifies key findings but doesn't fully simplify medical terms like "apical chronic changes" and omits the final sentence about pneumothorax.
 
 ### Example 2: Central Venous Catheter
 
@@ -339,9 +246,7 @@ The LoRA adapters are extremely lightweight (7 MB), making the fine-tuned model 
 **Reference (Ground Truth):**
 > A central venous catheter is going through the left jugular vein and its tip is in the superior vena cava. Everything else is the same as before.
 
-**Analysis:** The model preserves the technical terminology but doesn't simplify "traversing" → "going through". It also omits "The remainder is unchanged" → "Everything else is the same as before", which is an important piece of information for patients.
-
----
+**Analysis:** The model doesn't simplify "traversing" and omits the "remainder unchanged" statement.
 
 ### Example 3: Simple Report
 
@@ -354,9 +259,7 @@ The LoRA adapters are extremely lightweight (7 MB), making the fine-tuned model 
 **Reference (Ground Truth):**
 > Long-term changes in the lungs are seen.
 
-**Analysis:** The model fails to simplify this short report. It should translate "chronic" → "long-term" and "pulmonary" → "in the lungs". This suggests the model may need more training on short reports or stronger prompt engineering.
-
----
+**Analysis:** The model copies short reports verbatim without simplification, suggesting it needs more training on brief inputs.
 
 ### Example 4: Complex Asbestos Exposure
 
@@ -369,9 +272,7 @@ The LoRA adapters are extremely lightweight (7 MB), making the fine-tuned model 
 **Reference (Ground Truth):**
 > The X-ray shows signs of trapped air, a flattened muscle under the lungs, and more space behind the breastbone. There are also hardened areas on the lung lining on the left side. The left lung has lost some volume and has some linear shadows near the outer lining. These findings are related to long-term inflammation caused by exposure to asbestos. Looking at the previous CT scan, there are no significant changes compared to the scanogram dated 3/4/2009.
 
-**Analysis:** The model correctly identifies the main findings but doesn't fully simplify the technical terms. It also summarizes too aggressively, omitting important details about calcified pleural plaques and volume loss. This is a common challenge with complex reports—balancing brevity with completeness.
-
----
+**Analysis:** The model identifies main findings but over-summarizes, omitting details about pleural plaques and volume loss.
 
 ### Example 5: Calcified Granuloma
 
@@ -384,94 +285,41 @@ The LoRA adapters are extremely lightweight (7 MB), making the fine-tuned model 
 **Reference (Ground Truth):**
 > There is a calcified granuloma located at the top of the right lung.
 
-**Analysis:** The model doesn't simplify "vertex" → "top" or restructure the sentence for better readability. This suggests the model needs stronger signal for anatomical terms.
+**Analysis:** The model doesn't simplify anatomical terms like "vertex" or restructure for readability.
 
----
+## Error Analysis
 
-## 🔍 Error Analysis
+### Main Issues
 
-### Common Issues Observed
+**Incomplete Simplification**: The model often keeps technical terminology instead of simplifying (e.g., "bilateral apical" instead of "top of both lungs"). With only 50 training samples and 1 epoch, the model hasn't fully learned medical-to-layperson term mappings.
 
-**1. Incomplete Simplification (Most Common)**
-- The model often preserves technical medical terminology instead of simplifying it
-- Example: "bilateral apical" should become "at the top of both lungs"
-- Example: "dorsal kyphosis" should become "curved outward upper back"
+**Information Omission**: The model sometimes drops important details, likely due to over-prioritizing brevity or the 160-token output limit.
 
-**Root Cause:** The model needs more training signal to learn medical term → layperson term mappings. With only 50 training samples and 1 epoch, it hasn't fully learned these patterns.
+**Short Report Handling**: Very short reports (1-2 sentences) are copied verbatim, suggesting the model needs more training signal or context to recognize simplification is needed.
 
-**2. Information Omission**
-- The model sometimes drops important sentences or details
-- Example: Omitting "No evidence of pneumothorax" in Example 1
-- Example: Dropping details about pleural plaques in Example 4
+### Improvements Applied
 
-**Root Cause:** The model may be over-prioritizing brevity or struggling with longer inputs. The 160-token output limit may also contribute.
+Changed the prompt from "Summarize..." to "Explain...in simple terms that a patient can understand", resulting in +8.4% ROUGE-1, +54.1% ROUGE-2, and +9.9% ROUGE-Lsum. Also increased max_target_length from 128 to 160 tokens to allow more complete explanations.
 
-**3. Short Reports Not Simplified**
-- Very short reports (1-2 sentences) are often copied verbatim
-- Example: "Chronic pulmonary changes" → "Chronic pulmonary changes" (no change)
+### Future Work
 
-**Root Cause:** Short inputs may not provide enough context for the model to recognize simplification is needed. The model may also be relying on input length as a signal.
+Full training on 150K samples for 3-5 epochs, adding medical terminology glossaries, experimenting with more explicit prompts, considering longer output limits (200-256 tokens), and potentially adding post-processing medical term substitution.
 
-### Improvements Implemented
+## References
 
-**Prompt Engineering:**
-- Changed from "Summarize the following medical report for a layperson"
-- To "Explain the following medical report in simple terms that a patient can understand"
-- **Impact:** +8.4% ROUGE-1, +54.1% ROUGE-2, +9.9% ROUGE-Lsum
+1. Chung, H. W., et al. (2022). FLAN-T5: Scaling Instruction-Finetuned Language Models. arXiv:2210.11416
 
-**Max Length Increase:**
-- Increased max_target_length from 128 → 160 tokens
-- **Impact:** Allows more complete explanations, reduces truncation
+2. Hu, E. J., et al. (2021). LoRA: Low-Rank Adaptation of Large Language Models. arXiv:2106.09685
 
-### Future Improvements
+3. Goldsack, T., et al. (2024). BioLaySumm 2024: The Lay Summarisation of Biomedical Research Articles. BioNLP Workshop @ ACL 2024
 
-1. **More Training:** Full training on 150K samples for 3-5 epochs
-2. **Data Augmentation:** Add medical terminology glossaries to training data
-3. **Better Prompts:** Experiment with more explicit instructions (e.g., "Replace technical terms with simple words")
-4. **Longer Outputs:** Consider 200-256 token max length for complex reports
-5. **Post-processing:** Add medical term substitution rules as a post-processing step
+4. Lin, C. Y. (2004). ROUGE: A Package for Automatic Evaluation of Summaries. ACL Workshop on Text Summarization
 
----
+**Dataset:** BioLaySumm Shared Task 2024 (Subtask 2.1) - https://biolaysumm.org/shared-task/
 
-## 📚 References
+**Tools:** Hugging Face Transformers, PEFT, ROUGE Score
 
-### Papers
-
-1. **FLAN-T5: Scaling Instruction-Finetuned Language Models**  
-   Chung, H. W., et al. (2022)  
-   arXiv:2210.11416  
-   https://arxiv.org/abs/2210.11416
-
-2. **LoRA: Low-Rank Adaptation of Large Language Models**  
-   Hu, E. J., et al. (2021)  
-   arXiv:2106.09685  
-   https://arxiv.org/abs/2106.09685
-
-3. **BioLaySumm 2024: The Lay Summarisation of Biomedical Research Articles**  
-   Goldsack, T., et al. (2024)  
-   BioNLP Workshop @ ACL 2024  
-   https://biolaysumm.org/
-
-4. **ROUGE: A Package for Automatic Evaluation of Summaries**  
-   Lin, C. Y. (2004)  
-   ACL Workshop on Text Summarization  
-   https://aclanthology.org/W04-1013/
-
-### Dataset
-
-- **BioLaySumm Shared Task 2024 (Subtask 2.1)**  
-  ACL 2025 BioLaySumm Workshop  
-  https://biolaysumm.org/shared-task/
-
-### Code & Tools
-
-- **Hugging Face Transformers:** https://github.com/huggingface/transformers
-- **PEFT (Parameter-Efficient Fine-Tuning):** https://github.com/huggingface/peft
-- **ROUGE Score:** https://github.com/google-research/google-research/tree/master/rouge
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 recognition/flan_t5_lora_biolaysumm_47996377/
@@ -506,54 +354,6 @@ recognition/flan_t5_lora_biolaysumm_47996377/
 
 ---
 
-## 🎯 Assignment Completion Checklist
-
-- ✅ **Implementation (20 marks):**
-  - ✅ `modules.py` - Model components with LoRA
-  - ✅ `dataset.py` - Data loader with tokenization
-  - ✅ `train.py` - Training script with ROUGE evaluation
-  - ✅ `predict.py` - Inference script with test evaluation
-  - ✅ `requirements.txt` - Dependencies with versions
-  - ✅ Hard difficulty problem (full 20/20 marks)
-
-- ✅ **Commit Log (5 marks - Pass Hurdle):**
-  - ✅ 9 meaningful commits showing progressive development
-  - ✅ Clear commit messages with evidence of individual work
-
-- ✅ **Documentation (10 marks):**
-  - ✅ Problem description and working principles
-  - ✅ Method explanation with architecture details
-  - ✅ Data splits with justification
-  - ✅ Reproducibility information (hardware, seeds, versions)
-  - ✅ How-to-run instructions with commands
-  - ✅ Results table with ROUGE scores
-  - ✅ Training plots and visualizations
-  - ✅ 3-5 example predictions with analysis
-  - ✅ Error analysis paragraph
-  - ✅ References to papers and datasets
-  - ✅ Proper GitHub markdown formatting
-
-- ⏳ **Pull Request (5 marks - Pass Hurdle):**
-  - ⏳ Pull request to `topic-recognition` branch (pending)
-  - ⏳ Clear PR description and comments (pending)
-
-- ⏳ **Turn-it-in Submission:**
-  - ⏳ PDF version of README (pending)
-
----
-
-## 👤 Author
-
 **Student ID:** 47996377  
-**Course:** Pattern Analysis and Recognition  
-**Project:** #13 - FLAN-T5 LoRA Fine-Tuning for BioLaySumm
-
----
-
-## 📝 License
-
-This project is part of the PatternAnalysis open-source library. See the repository LICENSE for details.
-
----
-
-**Last Updated:** October 24, 2025
+**Project:** #13 - FLAN-T5 LoRA Fine-Tuning for BioLaySumm  
+**Course:** Pattern Analysis and Recognition
